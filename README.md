@@ -3,3 +3,6 @@ listens to what you are saying live through whisper.cpp and searches a txt docum
 
 
 To run run Run_auto_search_gui.py and make sure you have whisper.cpp set up as according to how its repository states, should just run then, the test txt file to search for is set as Alice and wonderland to avoid any copyright issues.
+
+
+![](https://www.dropbox.com/s/lohkmitbefnx5i7/Whisper_gui%20screen_grab.gif?dl=0)
