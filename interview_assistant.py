@@ -687,135 +687,186 @@ class TranscriptionThread(QThread):
 STYLESHEET = """
 /* ── Base ── */
 QMainWindow, QWidget {
-    background-color: #1e1e2e;
-    color: #cdd6f4;
-    font-family: "Segoe UI", "Inter", "Helvetica Neue", sans-serif;
+    background-color: #1a1b26;
+    color: #c0caf5;
+    font-family: "Segoe UI", "Inter", "Helvetica Neue", "SF Pro Display", sans-serif;
+    font-size: 13px;
 }
 
 /* ── Group boxes ── */
 QGroupBox {
-    border: 1px solid #313244;
-    border-radius: 8px;
-    margin-top: 10px;
-    padding-top: 10px;
-    font-weight: bold;
-    font-size: 13px;
-    color: #89b4fa;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    margin-top: 12px;
+    padding: 16px 10px 10px 10px;
+    font-weight: 600;
+    font-size: 14px;
+    color: #7aa2f7;
+    background-color: rgba(255,255,255,0.02);
 }
 QGroupBox::title {
     subcontrol-origin: margin;
-    left: 12px;
-    padding: 0 6px;
+    left: 14px;
+    padding: 0 8px;
 }
 
 /* ── Text areas ── */
 QTextEdit {
-    background-color: #181825;
-    color: #cdd6f4;
-    border: 1px solid #313244;
-    border-radius: 6px;
+    background-color: #16161e;
+    color: #c0caf5;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
     font-size: 13px;
-    padding: 6px;
-    selection-background-color: #585b70;
+    padding: 8px;
+    selection-background-color: #364a82;
+    line-height: 1.5;
 }
-QTextEdit:focus { border-color: #89b4fa; }
+QTextEdit:focus { border-color: #7aa2f7; }
 
 /* ── Buttons ── */
 QPushButton {
-    background-color: #313244;
-    color: #cdd6f4;
-    border: 1px solid #45475a;
-    border-radius: 6px;
-    padding: 6px 14px;
+    background-color: #24283b;
+    color: #c0caf5;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 7px 16px;
     font-size: 13px;
+    font-weight: 500;
 }
-QPushButton:hover { background-color: #45475a; border-color: #89b4fa; }
-QPushButton:pressed { background-color: #585b70; }
-QPushButton:disabled { color: #45475a; border-color: #313244; background-color: #1e1e2e; }
+QPushButton:hover {
+    background-color: #2f3549;
+    border-color: #7aa2f7;
+}
+QPushButton:pressed { background-color: #3b4261; }
+QPushButton:disabled {
+    color: #3b4261;
+    border-color: rgba(255,255,255,0.04);
+    background-color: #1a1b26;
+}
 
 QPushButton#startBtn {
-    background-color: #a6e3a1;
-    color: #1e1e2e;
+    background-color: #9ece6a;
+    color: #1a1b26;
     font-weight: bold;
     border: none;
+    padding: 8px 20px;
+    font-size: 13px;
 }
-QPushButton#startBtn:hover { background-color: #94e2d5; }
-QPushButton#startBtn:disabled { background-color: #313244; color: #45475a; }
+QPushButton#startBtn:hover { background-color: #73daca; }
+QPushButton#startBtn:disabled { background-color: #24283b; color: #3b4261; }
 
 QPushButton#stopBtn {
-    background-color: #f38ba8;
-    color: #1e1e2e;
+    background-color: #f7768e;
+    color: #1a1b26;
     font-weight: bold;
     border: none;
+    padding: 8px 16px;
 }
-QPushButton#stopBtn:hover { background-color: #eba0ac; }
-QPushButton#stopBtn:disabled { background-color: #313244; color: #45475a; }
+QPushButton#stopBtn:hover { background-color: #ff9e64; }
+QPushButton#stopBtn:disabled { background-color: #24283b; color: #3b4261; }
 
 /* ── Labels ── */
-QLabel { color: #cdd6f4; font-size: 13px; }
-QLabel#titleLabel { color: #89b4fa; font-size: 20px; font-weight: bold; }
-QLabel#subLabel    { color: #6c7086; font-size: 12px; }
-QLabel#docLabel    { color: #a6e3a1; font-size: 12px; }
-QLabel#statusLabel { color: #a6e3a1; font-size: 12px; font-weight: bold; }
-QLabel#backendLabel { color: #f9e2af; font-size: 11px; font-weight: bold; }
+QLabel { color: #c0caf5; font-size: 13px; }
+QLabel#titleLabel {
+    color: #7aa2f7;
+    font-size: 22px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+}
+QLabel#subLabel    { color: #565f89; font-size: 12px; }
+QLabel#docLabel    { color: #9ece6a; font-size: 12px; font-weight: 500; }
+QLabel#statusLabel { color: #9ece6a; font-size: 12px; font-weight: bold; }
+QLabel#backendLabel {
+    color: #e0af68;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 3px 10px;
+    border-radius: 10px;
+    background-color: rgba(224,175,104,0.12);
+}
+QLabel#chunkLabel {
+    color: #565f89;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 8px;
+    background-color: rgba(255,255,255,0.04);
+}
 
 /* ── Combo boxes ── */
 QComboBox {
-    background-color: #313244;
-    color: #cdd6f4;
-    border: 1px solid #45475a;
-    border-radius: 6px;
-    padding: 4px 8px;
+    background-color: #24283b;
+    color: #c0caf5;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 5px 10px;
     font-size: 12px;
 }
 QComboBox::drop-down { border: none; }
-QComboBox:hover { border-color: #89b4fa; }
+QComboBox:hover { border-color: #7aa2f7; }
 QComboBox QAbstractItemView {
-    background-color: #313244;
-    color: #cdd6f4;
-    selection-background-color: #585b70;
-    border: 1px solid #45475a;
+    background-color: #24283b;
+    color: #c0caf5;
+    selection-background-color: #3b4261;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 4px;
 }
 
 /* ── Splitter ── */
 QSplitter::handle {
-    background-color: #313244;
-    width: 4px;
-    height: 4px;
+    background-color: rgba(255,255,255,0.04);
+    width: 3px;
+    height: 3px;
+    border-radius: 1px;
 }
 
 /* ── Status bar ── */
 QStatusBar {
-    background-color: #181825;
-    color: #6c7086;
-    border-top: 1px solid #313244;
+    background-color: #16161e;
+    color: #565f89;
+    border-top: 1px solid rgba(255,255,255,0.06);
     font-size: 11px;
+    padding: 2px 8px;
 }
 
 /* ── Scroll bars ── */
 QScrollBar:vertical {
-    background: #1e1e2e;
-    width: 8px;
-    border-radius: 4px;
+    background: transparent;
+    width: 6px;
+    border-radius: 3px;
+    margin: 2px;
 }
 QScrollBar::handle:vertical {
-    background: #45475a;
-    border-radius: 4px;
-    min-height: 20px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 3px;
+    min-height: 24px;
+}
+QScrollBar::handle:vertical:hover {
+    background: rgba(255,255,255,0.20);
 }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
 QScrollBar:horizontal { height: 0; }
+
+/* ── Tooltips ── */
+QToolTip {
+    background-color: #24283b;
+    color: #c0caf5;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+}
 """
 
 # Highlight colour palette (cycled across matched keywords)
+# Each tuple: (foreground, background) — bolder backgrounds for readability
 _HIGHLIGHT_COLOURS = [
-    ("#fab387", "rgba(250,179,135,.15)"),  # peach
-    ("#a6e3a1", "rgba(166,227,161,.15)"),  # green
-    ("#89dceb", "rgba(137,220,235,.15)"),  # sky
-    ("#f9e2af", "rgba(249,226,175,.15)"),  # yellow
-    ("#cba6f7", "rgba(203,166,247,.15)"),  # mauve
-    ("#89b4fa", "rgba(137,180,250,.15)"),  # blue
-    ("#f38ba8", "rgba(243,139,168,.15)"),  # red
+    ("#ff9e64", "rgba(255,158,100,0.18)"),  # orange
+    ("#9ece6a", "rgba(158,206,106,0.18)"),  # green
+    ("#7dcfff", "rgba(125,207,255,0.18)"),  # cyan
+    ("#e0af68", "rgba(224,175,104,0.18)"),  # yellow
+    ("#bb9af7", "rgba(187,154,247,0.18)"),  # purple
+    ("#7aa2f7", "rgba(122,162,247,0.18)"),  # blue
+    ("#f7768e", "rgba(247,118,142,0.18)"),  # pink
 ]
 
 
@@ -826,62 +877,119 @@ _HIGHLIGHT_COLOURS = [
 class ReferenceCard(QFrame):
     """Displays one document chunk match with highlighted keywords."""
 
+    # Score thresholds for colour grading
+    _SCORE_COLOURS = [
+        (0.55, "#9ece6a", "rgba(158,206,106,0.10)"),  # high → green
+        (0.30, "#e0af68", "rgba(224,175,104,0.10)"),   # medium → amber
+        (0.00, "#f7768e", "rgba(247,118,142,0.10)"),   # low → pink
+    ]
+
+    # File-extension → emoji mapping
+    _TYPE_ICONS = {
+        ".pdf": "📕", ".docx": "📘", ".doc": "📘",
+        ".txt": "📄", ".md": "📝", ".csv": "📊",
+    }
+
     def __init__(
         self,
         chunk: DocumentChunk,
         score: float,
         keywords: List[str],
+        backend_name: str = "",
         parent=None,
     ) -> None:
         super().__init__(parent)
+        pct = int(score * 100)
+
+        # Determine colour for this score
+        accent, accent_bg = "#565f89", "rgba(86,95,137,0.08)"
+        for threshold, colour, bg in self._SCORE_COLOURS:
+            if score >= threshold:
+                accent, accent_bg = colour, bg
+                break
+
+        ext = Path(chunk.source_file).suffix.lower()
+        icon = self._TYPE_ICONS.get(ext, "📄")
+
+        # ── Card container styling ──
         self.setObjectName("refCard")
-        self.setStyleSheet("""
-            QFrame#refCard {
-                background-color: #313244;
-                border: 1px solid #45475a;
+        self.setStyleSheet(f"""
+            QFrame#refCard {{
+                background-color: #1f2335;
+                border: 1px solid rgba(255,255,255,0.06);
+                border-left: 3px solid {accent};
                 border-radius: 10px;
-                margin: 3px 2px;
-            }
-            QFrame#refCard:hover { border-color: #89b4fa; }
+                margin: 2px 0px;
+            }}
+            QFrame#refCard:hover {{
+                border-color: {accent};
+                background-color: #24283b;
+            }}
         """)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(4)
+        layout.setContentsMargins(14, 10, 14, 10)
+        layout.setSpacing(6)
 
-        # Header row
+        # ── Header row: source badge + score pill ──
         header = QHBoxLayout()
-        src_lbl = QLabel(f"📄  {chunk.display_source}")
+        header.setSpacing(8)
+
+        # Source file badge
+        src_lbl = QLabel(f"{icon}  {chunk.display_source}")
         src_lbl.setStyleSheet(
-            "color: #89b4fa; font-weight: bold; font-size: 12px; border: none;"
+            "color: #7aa2f7; font-weight: 600; font-size: 12px; border: none;"
+            "padding: 2px 0px;"
         )
-        pct = int(score * 100)
-        if pct > 55:
-            score_colour = "#a6e3a1"
-        elif pct > 30:
-            score_colour = "#f9e2af"
-        else:
-            score_colour = "#f38ba8"
-        score_lbl = QLabel(f"{pct}% match")
+
+        # Score pill
+        score_lbl = QLabel(f"  {pct}%  ")
+        score_lbl.setAlignment(Qt.AlignCenter)
         score_lbl.setStyleSheet(
-            f"color: {score_colour}; font-size: 11px; border: none;"
+            f"color: {accent}; font-size: 12px; font-weight: bold; border: none;"
+            f"background-color: {accent_bg}; border-radius: 8px;"
+            f"padding: 2px 10px; min-width: 36px;"
         )
+
         header.addWidget(src_lbl)
         header.addStretch()
+        # Backend name label (small, muted)
+        if backend_name:
+            be_lbl = QLabel(backend_name)
+            be_lbl.setStyleSheet(
+                "color: #565f89; font-size: 10px; border: none; "
+                "padding: 1px 6px; font-style: italic;"
+            )
+            header.addWidget(be_lbl)
         header.addWidget(score_lbl)
         layout.addLayout(header)
 
-        # Text body
+        # Score bar (thin visual indicator) — scale pct (0–100) to ~250 px max
+        bar_container = QFrame()
+        bar_container.setFixedHeight(4)
+        bar_container.setStyleSheet(
+            "background-color: rgba(255,255,255,0.04); border-radius: 2px; border: none;"
+        )
+        bar_fill = QFrame(bar_container)
+        fill_width = max(4, int(pct * 2.5))  # 100% → 250 px, 0% → 4 px minimum
+        bar_fill.setFixedSize(fill_width, 4)
+        bar_fill.setStyleSheet(
+            f"background-color: {accent}; border-radius: 2px; border: none;"
+        )
+        layout.addWidget(bar_container)
+
+        # ── Text body ──
         body = QTextEdit()
         body.setReadOnly(True)
-        body.setMaximumHeight(110)
+        body.setMaximumHeight(100)
         body.setStyleSheet("""
             QTextEdit {
-                background-color: #1e1e2e;
+                background-color: rgba(255,255,255,0.02);
                 border: none;
-                border-radius: 4px;
+                border-radius: 6px;
                 font-size: 12px;
-                padding: 4px;
+                padding: 6px 8px;
+                line-height: 1.6;
             }
         """)
         body.setHtml(self._highlight(chunk.text, keywords))
@@ -903,12 +1011,16 @@ class ReferenceCard(QFrame):
                 re.compile(re.escape(kw), re.IGNORECASE),
                 (
                     f'<span style="color:{fg};font-weight:bold;'
-                    f'background-color:{bg};">'
+                    f'background-color:{bg};border-radius:3px;'
+                    f'padding:0 2px;">'
                     r"\g<0></span>"
                 ),
                 html,
             )
-        return f'<span style="color:#cdd6f4;font-size:12px;line-height:1.5">{html}</span>'
+        return (
+            f'<span style="color:#a9b1d6;font-size:12px;'
+            f'line-height:1.6">{html}</span>'
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -956,16 +1068,17 @@ class InterviewAssistant(QMainWindow):
     def _build_ui(self) -> None:
         self.setWindowTitle("Interview Assistant — Live Reference Finder")
         self.setMinimumSize(1100, 720)
-        self.resize(1300, 840)
+        self.resize(1340, 880)
 
         root = QWidget()
         self.setCentralWidget(root)
         root_layout = QVBoxLayout(root)
-        root_layout.setContentsMargins(14, 12, 14, 6)
-        root_layout.setSpacing(8)
+        root_layout.setContentsMargins(16, 14, 16, 8)
+        root_layout.setSpacing(10)
 
         # Title bar ──────────────────────────────────────────────────────────
         title_row = QHBoxLayout()
+        title_row.setSpacing(10)
         title_lbl = QLabel("🎙  Interview Assistant")
         title_lbl.setObjectName("titleLabel")
         self._status_indicator = QLabel("⚪  Ready")
@@ -978,7 +1091,7 @@ class InterviewAssistant(QMainWindow):
         title_row.addWidget(title_lbl)
         title_row.addStretch()
         title_row.addWidget(self._backend_label)
-        title_row.addSpacing(12)
+        title_row.addSpacing(10)
         title_row.addWidget(self._status_indicator)
         root_layout.addLayout(title_row)
 
@@ -988,7 +1101,8 @@ class InterviewAssistant(QMainWindow):
         # Separator
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("color: #313244;")
+        sep.setFixedHeight(1)
+        sep.setStyleSheet("background-color: rgba(255,255,255,0.06); border: none;")
         root_layout.addWidget(sep)
 
         # Main split pane ────────────────────────────────────────────────────
@@ -996,7 +1110,7 @@ class InterviewAssistant(QMainWindow):
         splitter.setHandleWidth(6)
         splitter.addWidget(self._build_left_panel())
         splitter.addWidget(self._build_right_panel())
-        splitter.setSizes([400, 700])
+        splitter.setSizes([420, 750])
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 2)
         root_layout.addWidget(splitter, stretch=1)
@@ -1013,7 +1127,7 @@ class InterviewAssistant(QMainWindow):
 
     def _build_doc_toolbar(self) -> QHBoxLayout:
         bar = QHBoxLayout()
-        bar.setSpacing(8)
+        bar.setSpacing(10)
 
         load_btn = QPushButton("📂  Load Documents")
         load_btn.setToolTip(
@@ -1030,11 +1144,11 @@ class InterviewAssistant(QMainWindow):
         self._doc_label.setObjectName("subLabel")
 
         self._chunk_label = QLabel("")
-        self._chunk_label.setObjectName("subLabel")
+        self._chunk_label.setObjectName("chunkLabel")
 
         bar.addWidget(load_btn)
         bar.addWidget(clear_btn)
-        bar.addSpacing(10)
+        bar.addSpacing(12)
         bar.addWidget(self._doc_label)
         bar.addStretch()
         bar.addWidget(self._chunk_label)
@@ -1043,8 +1157,8 @@ class InterviewAssistant(QMainWindow):
     def _build_left_panel(self) -> QGroupBox:
         grp = QGroupBox("Live Transcript")
         ly = QVBoxLayout(grp)
-        ly.setContentsMargins(8, 14, 8, 8)
-        ly.setSpacing(8)
+        ly.setContentsMargins(10, 16, 10, 10)
+        ly.setSpacing(10)
 
         self._transcript = QTextEdit()
         self._transcript.setReadOnly(True)
@@ -1059,18 +1173,19 @@ class InterviewAssistant(QMainWindow):
         # Manual input sub-group
         manual_grp = QGroupBox("Manual Input  (test without microphone)")
         manual_grp.setStyleSheet(
-            "QGroupBox { font-size: 11px; color: #6c7086; "
-            "border-color: #313244; margin-top: 6px; padding-top: 6px; }"
+            "QGroupBox { font-size: 11px; color: #565f89; "
+            "border-color: rgba(255,255,255,0.06); margin-top: 8px; padding-top: 8px; }"
         )
         ml = QHBoxLayout(manual_grp)
-        ml.setContentsMargins(6, 8, 6, 6)
+        ml.setContentsMargins(8, 10, 8, 8)
+        ml.setSpacing(8)
         self._manual_input = QTextEdit()
         self._manual_input.setMaximumHeight(56)
         self._manual_input.setPlaceholderText(
             "Type text here and press Search to find matching document sections…"
         )
-        search_btn = QPushButton("Search")
-        search_btn.setFixedWidth(72)
+        search_btn = QPushButton("🔍 Search")
+        search_btn.setMinimumWidth(90)
         search_btn.clicked.connect(self._manual_search)
         ml.addWidget(self._manual_input)
         ml.addWidget(search_btn)
@@ -1081,13 +1196,17 @@ class InterviewAssistant(QMainWindow):
     def _build_right_panel(self) -> QGroupBox:
         grp = QGroupBox("Document References")
         ly = QVBoxLayout(grp)
-        ly.setContentsMargins(8, 14, 8, 8)
-        ly.setSpacing(6)
+        ly.setContentsMargins(10, 16, 10, 10)
+        ly.setSpacing(8)
 
         # Info row
         info_row = QHBoxLayout()
+        info_row.setSpacing(6)
         self._query_label = QLabel("Matching: —")
         self._query_label.setObjectName("subLabel")
+        self._query_label.setStyleSheet(
+            "color: #565f89; font-size: 12px; font-style: italic;"
+        )
         self._count_label = QLabel("")
         self._count_label.setObjectName("subLabel")
         info_row.addWidget(self._query_label)
@@ -1098,22 +1217,27 @@ class InterviewAssistant(QMainWindow):
         # Scrollable card area
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: none; }")
+        scroll.setStyleSheet(
+            "QScrollArea { border: none; background: transparent; }"
+        )
         self._results_widget = QWidget()
+        self._results_widget.setStyleSheet("background: transparent;")
         self._results_layout = QVBoxLayout(self._results_widget)
-        self._results_layout.setContentsMargins(0, 0, 0, 0)
-        self._results_layout.setSpacing(6)
+        self._results_layout.setContentsMargins(0, 0, 4, 0)
+        self._results_layout.setSpacing(8)
         self._results_layout.addStretch()
         scroll.setWidget(self._results_widget)
         ly.addWidget(scroll, stretch=1)
 
         # Placeholder label (shown when no results)
         self._placeholder = QLabel(
-            "Load documents and start speaking\nto see live references here"
+            "📂  Load documents and start speaking\n"
+            "to see live references here"
         )
         self._placeholder.setAlignment(Qt.AlignCenter)
         self._placeholder.setStyleSheet(
-            "color: #45475a; font-size: 15px; font-style: italic;"
+            "color: #3b4261; font-size: 15px; font-style: italic;"
+            "padding: 40px; line-height: 1.8;"
         )
         ly.addWidget(self._placeholder)
 
@@ -1178,7 +1302,9 @@ class InterviewAssistant(QMainWindow):
         if model is not None:
             self._backend_label.setText(f"🧠 Semantic  [{device}]")
             self._backend_label.setStyleSheet(
-                "color: #a6e3a1; font-size: 11px; font-weight: bold;"
+                "color: #9ece6a; font-size: 11px; font-weight: bold;"
+                "padding: 3px 10px; border-radius: 10px;"
+                "background-color: rgba(158,206,106,0.12);"
             )
             # If documents were loaded before the model was ready, index them now
             if self._embed_needed and self._doc_manager.chunks:
@@ -1204,7 +1330,9 @@ class InterviewAssistant(QMainWindow):
         self._embed_indexer.start()
         self._backend_label.setText("⏳ Indexing…")
         self._backend_label.setStyleSheet(
-            "color: #f9e2af; font-size: 11px; font-weight: bold;"
+            "color: #e0af68; font-size: 11px; font-weight: bold;"
+            "padding: 3px 10px; border-radius: 10px;"
+            "background-color: rgba(224,175,104,0.12);"
         )
 
     def _on_embeddings_ready(self, embeddings) -> None:
@@ -1215,7 +1343,9 @@ class InterviewAssistant(QMainWindow):
             device = _best_device()
             self._backend_label.setText(f"🧠 Semantic  [{device}]  {n} chunks")
             self._backend_label.setStyleSheet(
-                "color: #a6e3a1; font-size: 11px; font-weight: bold;"
+                "color: #9ece6a; font-size: 11px; font-weight: bold;"
+                "padding: 3px 10px; border-radius: 10px;"
+                "background-color: rgba(158,206,106,0.12);"
             )
             self._status_bar.showMessage(
                 f"Semantic index ready — {n} chunks indexed for meaning-based search  ✔"
@@ -1230,16 +1360,18 @@ class InterviewAssistant(QMainWindow):
     def _update_backend_label(self) -> None:
         name = self._doc_manager.backend_name
         if "semantic" in name:
-            icon, colour = "🧠", "#a6e3a1"
+            icon, colour, bg = "🧠", "#9ece6a", "rgba(158,206,106,0.12)"
         elif "hybrid" in name:
-            icon, colour = "📊", "#f9e2af"
+            icon, colour, bg = "📊", "#e0af68", "rgba(224,175,104,0.12)"
         elif "tfidf" in name:
-            icon, colour = "📈", "#cba6f7"
+            icon, colour, bg = "📈", "#bb9af7", "rgba(187,154,247,0.12)"
         else:
-            icon, colour = "⌨️", "#6c7086"
+            icon, colour, bg = "⌨️", "#565f89", "rgba(86,95,137,0.12)"
         self._backend_label.setText(f"{icon} {name.capitalize()}")
         self._backend_label.setStyleSheet(
             f"color: {colour}; font-size: 11px; font-weight: bold;"
+            f"padding: 3px 10px; border-radius: 10px;"
+            f"background-color: {bg};"
         )
 
     # ── Document management ──────────────────────────────────────────────────
@@ -1313,7 +1445,7 @@ class InterviewAssistant(QMainWindow):
         self._stop_btn.setEnabled(True)
         self._status_indicator.setText("🔴  Listening")
         self._status_indicator.setStyleSheet(
-            "color: #f38ba8; font-weight: bold; font-size: 12px;"
+            "color: #f7768e; font-weight: bold; font-size: 12px;"
         )
 
     def _stop_listening(self) -> None:
@@ -1325,7 +1457,7 @@ class InterviewAssistant(QMainWindow):
         self._stop_btn.setEnabled(False)
         self._status_indicator.setText("⚪  Stopped")
         self._status_indicator.setStyleSheet(
-            "color: #6c7086; font-size: 12px;"
+            "color: #565f89; font-size: 12px;"
         )
 
     # ── Transcription signal handlers ────────────────────────────────────────
@@ -1337,7 +1469,7 @@ class InterviewAssistant(QMainWindow):
         # Append to rolling transcript display
         self._transcript.moveCursor(QTextCursor.End)
         self._transcript.insertHtml(
-            f'<span style="color:#cdd6f4">{text} </span>'
+            f'<span style="color:#c0caf5">{text} </span>'
         )
         self._transcript.moveCursor(QTextCursor.End)
 
@@ -1365,7 +1497,7 @@ class InterviewAssistant(QMainWindow):
             return
         self._transcript.moveCursor(QTextCursor.End)
         self._transcript.insertHtml(
-            f'<br><span style="color:#89b4fa;font-style:italic">'
+            f'<br><span style="color:#7aa2f7;font-style:italic">'
             f"[Manual: {query}]</span><br>"
         )
         self._pending_query = query
@@ -1418,9 +1550,15 @@ class InterviewAssistant(QMainWindow):
         self._count_label.setText(
             f"{len(results)} reference(s) found  ·  {backend}"
         )
+        self._count_label.setStyleSheet(
+            "color: #7aa2f7; font-size: 11px; font-weight: 500;"
+        )
 
         for chunk, score in results:
-            card = ReferenceCard(chunk, score, keywords)
+            card = ReferenceCard(
+                chunk, score, keywords,
+                backend_name=backend,
+            )
             self._results_layout.insertWidget(
                 self._results_layout.count() - 1, card
             )
