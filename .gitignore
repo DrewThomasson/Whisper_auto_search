@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# NLTK data (downloaded at runtime)
+nltk_data/
+
+# Whisper model cache (downloaded at runtime)
+.cache/
+
+# Local test screenshots
+screenshot.png
+
+# macOS
+.DS_Store

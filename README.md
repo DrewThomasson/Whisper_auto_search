@@ -1,8 +1,63 @@
-# Whisper_Search_auto
-listens to what you are saying live through whisper.cpp and searches a txt document for relevant sections based on noun keywords. Thought it would be good if you were interviewing someone and you read all their papers by having a computer search through all their papers on relevant sections based on keywords in what they re currently saying live.
+# Whisper Auto Search
 
+Two tools for live speech-to-document reference matching — ideal for interviewers who want instant context from a candidate's resume and documents as the conversation unfolds.
 
-To run run Run_auto_search_gui.py and make sure you have whisper.cpp set up as according to how its repository states, should just run then, the test txt file to search for is set as Alice and wonderland to avoid any copyright issues.
+---
 
+## 🎙 Interview Assistant  *(new — recommended)*
 
-![](https://www.dropbox.com/s/lohkmitbefnx5i7/Whisper_gui%20screen_grab.gif?dl=0)
+A polished, fully self-contained desktop app that surfaces relevant sections from a candidate's resume and supplemental documents **in real time as they speak** — so you always have context without needing to pre-read anything.
+
+![Interview Assistant screenshot](https://github.com/user-attachments/assets/c74b5e36-af79-4eb5-bad1-2906383fcdda)
+
+### Features
+
+| Feature | Detail |
+|---|---|
+| **Live transcription** | Runs locally via `faster-whisper` (tiny → medium models). No API key or internet required. |
+| **Multi-document support** | Load PDF, DOCX, and TXT files simultaneously. Documents are chunked and indexed with TF-IDF for sub-second search. |
+| **Keyword highlighting** | Matched keywords are highlighted in colour inside each reference card so you can skim results instantly. |
+| **Relevance scores** | Each card shows a percentage match so you know how strongly a section relates to what was just said. |
+| **Debounced search** | Results update smoothly 600 ms after speech is detected — not on every word. |
+| **Manual input** | A text box lets you test the search without a microphone. |
+| **Clean dark UI** | Modern two-panel layout (live transcript ∣ document references). |
+
+### Quick start
+
+```bash
+pip install -r requirements.txt
+python interview_assistant.py
+```
+
+1. Click **📂 Load Documents** and select the candidate's resume, cover letter, or any other files (PDF / DOCX / TXT).
+2. Click **▶ Start Listening**.
+3. As the candidate speaks, relevant document sections appear automatically on the right panel.
+
+### Transcription backends (tried in order)
+
+1. **`faster-whisper`** — recommended; fast, fully local, no internet.
+2. **`openai-whisper`** — alternative local option (`pip install openai-whisper`).
+3. **`SpeechRecognition` + Google** — fallback, requires internet.
+
+### Model size guide
+
+| Model | Speed | Accuracy | RAM |
+|---|---|---|---|
+| tiny | fastest | lowest | ~1 GB |
+| base | fast | good | ~1 GB |
+| small | moderate | better | ~2 GB |
+| medium | slow | best | ~5 GB |
+
+---
+
+## Run_auto_search_gui.py  *(original)*
+
+The original prototype. Listens via the `whisper.cpp` `./stream` binary and searches a TXT file for relevant noun-matched sections.
+
+To run: set up [whisper.cpp](https://github.com/ggerganov/whisper.cpp) according to its README, then:
+
+```bash
+python Run_auto_search_gui.py
+```
+
+The test document is set to *Alice in Wonderland* to avoid copyright issues.
