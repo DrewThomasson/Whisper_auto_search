@@ -215,7 +215,7 @@ class DocumentManager:
             processed = [self._preprocess(c.text) for c in self.chunks]
             self._vectorizer = TfidfVectorizer(
                 ngram_range=(1, 2),
-                max_features=15_000,
+                max_features=8_000,
                 sublinear_tf=True,
             )
             self._tfidf_matrix = self._vectorizer.fit_transform(processed)
@@ -274,8 +274,8 @@ class TranscriptionThread(QThread):
     error_signal = pyqtSignal(str)
 
     SAMPLE_RATE = 16_000
-    CHUNK_SECONDS = 4       # seconds of audio per transcription call
-    STEP_SECONDS = 2        # how much to advance the window each iteration
+    CHUNK_SECONDS = 4   # seconds of audio fed to each transcription call
+    STEP_SECONDS = 2    # how far to advance the sliding window (yields 2 s overlap)
 
     def __init__(self, model_size: str = "base", parent=None) -> None:
         super().__init__(parent)
@@ -672,7 +672,8 @@ class InterviewAssistant(QMainWindow):
       Right — top-ranked document sections relevant to recent speech
     """
 
-    _BUFFER_MAX_WORDS = 120   # how many recent words are kept for searching
+    _BUFFER_MAX_WORDS = 120       # how many recent words are kept for searching
+    _THREAD_STOP_TIMEOUT_MS = 4_000  # ms to wait for the transcription thread to finish
 
     def __init__(self) -> None:
         super().__init__()
@@ -965,7 +966,7 @@ class InterviewAssistant(QMainWindow):
     def _stop_listening(self) -> None:
         if self._transcription_thread:
             self._transcription_thread.stop()
-            self._transcription_thread.wait(4_000)
+            self._transcription_thread.wait(self._THREAD_STOP_TIMEOUT_MS)
             self._transcription_thread = None
         self._start_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
