@@ -6,6 +6,12 @@ As an interviewee speaks, this tool automatically surfaces relevant sections
 from their resume and supplemental documents in real time, so the interviewer
 always has context without needing to pre-read everything.
 
+Search backend hierarchy (best available is used automatically):
+  1. Semantic  — sentence-transformers all-MiniLM-L6-v2 (meaning-based, most accurate)
+  2. Hybrid    — BM25 + TF-IDF combined  (good keyword precision)
+  3. TF-IDF    — cosine similarity fallback
+  4. Keyword   — simple word-overlap bare-minimum fallback
+
 Usage:
     python interview_assistant.py
 
@@ -16,13 +22,12 @@ Requirements:
 import os
 import sys
 import re
-import time
 import queue
 import string
 import threading
 from pathlib import Path
-from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Dict
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
 
 import numpy as np
 
@@ -30,8 +35,7 @@ import numpy as np
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QTextEdit, QFileDialog, QFrame, QScrollArea,
-    QSplitter, QStatusBar, QGroupBox, QComboBox, QSizePolicy,
-    QMessageBox, QSpacerItem,
+    QSplitter, QStatusBar, QGroupBox, QComboBox, QMessageBox,
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt5.QtGui import QFont, QTextCursor
@@ -39,8 +43,7 @@ from PyQt5.QtGui import QFont, QTextCursor
 # ── NLP ──────────────────────────────────────────────────────────────────────
 import nltk
 
-for _ds in ("punkt", "punkt_tab", "stopwords", "averaged_perceptron_tagger",
-            "averaged_perceptron_tagger_eng"):
+for _ds in ("punkt", "punkt_tab", "stopwords"):
     try:
         nltk.download(_ds, quiet=True)
     except Exception:
@@ -48,15 +51,40 @@ for _ds in ("punkt", "punkt_tab", "stopwords", "averaged_perceptron_tagger",
 
 from nltk.corpus import stopwords as nltk_stopwords
 from nltk.tokenize import word_tokenize, sent_tokenize
-from nltk import pos_tag
 
-# ── Optional scikit-learn ─────────────────────────────────────────────────
+# ── Optional backends ────────────────────────────────────────────────────────
 try:
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics.pairwise import cosine_similarity
-    _SKLEARN_AVAILABLE = True
+    _SKLEARN = True
 except ImportError:
-    _SKLEARN_AVAILABLE = False
+    _SKLEARN = False
+
+try:
+    from rank_bm25 import BM25Okapi  # type: ignore
+    _BM25 = True
+except ImportError:
+    _BM25 = False
+
+try:
+    from sentence_transformers import SentenceTransformer  # type: ignore
+    _SBERT = True
+except ImportError:
+    _SBERT = False
+
+
+def _best_device() -> str:
+    """Return the best available compute device (cuda → mps → cpu)."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return "cuda"
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return "mps"
+    except ImportError:
+        pass
+    return "cpu"
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Data model
@@ -69,7 +97,6 @@ class DocumentChunk:
     text: str
     chunk_index: int = 0
     page_num: Optional[int] = None
-    start_sent: int = 0
 
     @property
     def display_source(self) -> str:
@@ -80,30 +107,157 @@ class DocumentChunk:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Background threads for non-blocking model loading and indexing
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ModelLoaderThread(QThread):
+    """Loads the sentence-transformer embedding model in the background."""
+
+    EMBED_MODEL = "all-MiniLM-L6-v2"  # 22 M params, ~80 MB, fast on CPU
+
+    model_ready = pyqtSignal(object, str)   # (model_or_None, device_name)
+    status_update = pyqtSignal(str)
+
+    def run(self) -> None:
+        if not _SBERT:
+            self.status_update.emit(
+                "sentence-transformers not installed → using TF-IDF+BM25  "
+                "(pip install sentence-transformers for semantic search)"
+            )
+            self.model_ready.emit(None, "cpu")
+            return
+
+        device = _best_device()
+        self.status_update.emit(
+            f"Loading semantic model '{self.EMBED_MODEL}' on {device} "
+            "(first run downloads ~80 MB)…"
+        )
+        try:
+            model = SentenceTransformer(self.EMBED_MODEL, device=device)
+            self.status_update.emit(f"Semantic model ready  [{device}]  ✔")
+            self.model_ready.emit(model, device)
+        except Exception as exc:
+            self.status_update.emit(
+                f"Semantic model failed ({exc}) → falling back to TF-IDF+BM25"
+            )
+            self.model_ready.emit(None, "cpu")
+
+
+class EmbeddingIndexThread(QThread):
+    """Computes sentence embeddings for all chunks in the background."""
+
+    embeddings_ready = pyqtSignal(object)   # numpy ndarray or None
+    status_update = pyqtSignal(str)
+
+    def __init__(
+        self,
+        model,
+        chunks: List[DocumentChunk],
+        parent=None,
+    ) -> None:
+        super().__init__(parent)
+        self._model = model
+        self._chunks = list(chunks)  # snapshot
+
+    def run(self) -> None:
+        n = len(self._chunks)
+        self.status_update.emit(f"Computing semantic embeddings for {n} chunks…")
+        try:
+            texts = [c.text for c in self._chunks]
+            embeddings = self._model.encode(
+                texts,
+                batch_size=64,
+                show_progress_bar=False,
+                convert_to_numpy=True,
+            )
+            self.status_update.emit(f"Semantic index ready  ({n} chunks)  ✔")
+            self.embeddings_ready.emit(embeddings)
+        except Exception as exc:
+            self.status_update.emit(f"Embedding index failed: {exc}")
+            self.embeddings_ready.emit(None)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Document Manager
 # ─────────────────────────────────────────────────────────────────────────────
 
 class DocumentManager:
-    """Loads documents (PDF / DOCX / TXT) and runs fast TF-IDF searches."""
+    """
+    Loads documents (PDF / DOCX / TXT) and searches them using the best
+    available backend.
 
-    CHUNK_SENTENCES = 5   # sentences per chunk
-    OVERLAP_SENTENCES = 2  # overlap between adjacent chunks
+    Backend priority (set automatically as capabilities become available):
+      1. Semantic  — sentence-transformer cosine similarity (meaning-based)
+      2. Hybrid    — BM25 + TF-IDF combined (exact-term precision + IDF weight)
+      3. TF-IDF    — cosine similarity with IDF weighting
+      4. Keyword   — simple word-overlap, bare-minimum fallback
+    """
+
+    CHUNK_SENTENCES = 4    # sentences per chunk; 4 works well for semantic models
+    # (too large dilutes the embedding; too small loses context)
+    OVERLAP_SENTENCES = 1   # sentence overlap between adjacent chunks
+    MIN_CHUNK_LENGTH = 20   # chars — skip chunks shorter than this (headers, page numbers, etc.)
+
+    # Default similarity thresholds per backend
+    SEMANTIC_MIN_SCORE: float = 0.20   # cosine similarity; 0.20+ is meaningfully related
+    HYBRID_MIN_SCORE: float = 0.04     # normalised BM25+TF-IDF combined score
+    KEYWORD_MIN_SCORE: float = 0.10    # fraction of query words that must appear
+
+    # Hybrid combination weights (must sum to 1.0)
+    _TFIDF_WEIGHT: float = 0.5   # TF-IDF cosine: rewards rare, document-specific terms
+    _BM25_WEIGHT: float = 0.5    # BM25: rewards exact token matches
 
     def __init__(self) -> None:
         self.chunks: List[DocumentChunk] = []
-        self._vectorizer: Optional[TfidfVectorizer] = None
-        self._tfidf_matrix = None
+        self.backend_name: str = "keyword"
         self._stop_words = set(nltk_stopwords.words("english"))
+
+        # Semantic backend (populated externally via set_embed_model / set_embeddings)
+        self._embed_model = None     # SentenceTransformer
+        self._embeddings: Optional[np.ndarray] = None  # shape (N, D)
+
+        # Keyword backends (built synchronously when a file is loaded)
+        self._bm25 = None
+        self._tfidf_vec = None
+        self._tfidf_mat = None
+
+    # ── External setters (called from QThread signals) ───────────────────────
+
+    @property
+    def embed_model(self):
+        """The loaded SentenceTransformer model, or None."""
+        return self._embed_model
+
+    def set_embed_model(self, model) -> None:
+        self._embed_model = model
+        if model is not None and self.backend_name in ("keyword", "tfidf", "hybrid"):
+            self.backend_name = "semantic (indexing…)"
+
+    def set_embeddings(self, embeddings: Optional[np.ndarray]) -> None:
+        if embeddings is not None:
+            self._embeddings = embeddings
+            self.backend_name = "semantic"
+        else:
+            # Embedding failed — revert to best available keyword backend
+            if self._bm25 is not None and self._tfidf_vec is not None:
+                self.backend_name = "hybrid"
+            elif self._tfidf_vec is not None:
+                self.backend_name = "tfidf"
+            else:
+                self.backend_name = "keyword"
 
     # ── Public API ──────────────────────────────────────────────────────────
 
     def clear(self) -> None:
         self.chunks.clear()
-        self._vectorizer = None
-        self._tfidf_matrix = None
+        self._embeddings = None
+        self._bm25 = None
+        self._tfidf_vec = None
+        self._tfidf_mat = None
+        self.backend_name = "keyword"
 
     def load_file(self, path: str) -> int:
-        """Load a file; return the number of new chunks added."""
+        """Load a file and rebuild keyword indices; return chunk count added."""
         ext = Path(path).suffix.lower()
         try:
             if ext == ".pdf":
@@ -118,23 +272,43 @@ class DocumentManager:
 
         if new_chunks:
             self.chunks.extend(new_chunks)
-            self._rebuild_index()
+            self._rebuild_keyword_index()
         return len(new_chunks)
 
     def search(
         self,
         query: str,
         top_k: int = 5,
-        min_score: float = 0.04,
+        min_score: Optional[float] = None,
     ) -> List[Tuple[DocumentChunk, float]]:
-        """Return (chunk, score) pairs ranked by relevance."""
+        """Return (chunk, score) pairs ranked by relevance, best backend first."""
         if not self.chunks or not query.strip():
             return []
-        if _SKLEARN_AVAILABLE and self._vectorizer is not None:
-            return self._search_tfidf(query, top_k, min_score)
-        return self._search_keyword(query, top_k, min_score)
 
-    # ── Loading helpers ──────────────────────────────────────────────────────
+        if self._embeddings is not None and self._embed_model is not None:
+            return self._search_semantic(
+                query, top_k,
+                min_score if min_score is not None else self.SEMANTIC_MIN_SCORE,
+            )
+
+        if self._bm25 is not None and self._tfidf_vec is not None:
+            return self._search_hybrid(
+                query, top_k,
+                min_score if min_score is not None else self.HYBRID_MIN_SCORE,
+            )
+
+        if self._tfidf_vec is not None:
+            return self._search_tfidf(
+                query, top_k,
+                min_score if min_score is not None else self.HYBRID_MIN_SCORE,
+            )
+
+        return self._search_keyword(
+            query, top_k,
+            min_score if min_score is not None else self.KEYWORD_MIN_SCORE,
+        )
+
+    # ── File loading ─────────────────────────────────────────────────────────
 
     def _chunk_text(
         self,
@@ -146,16 +320,14 @@ class DocumentManager:
         step = max(1, self.CHUNK_SENTENCES - self.OVERLAP_SENTENCES)
         chunks: List[DocumentChunk] = []
         for i in range(0, len(sentences), step):
-            chunk_sents = sentences[i : i + self.CHUNK_SENTENCES]
-            chunk_text = " ".join(chunk_sents).strip()
-            if chunk_text:
+            chunk_text = " ".join(sentences[i : i + self.CHUNK_SENTENCES]).strip()
+            if len(chunk_text) >= self.MIN_CHUNK_LENGTH:
                 chunks.append(
                     DocumentChunk(
                         source_file=source,
                         text=chunk_text,
                         chunk_index=len(self.chunks) + len(chunks),
                         page_num=page_num,
-                        start_sent=i,
                     )
                 )
         return chunks
@@ -174,7 +346,7 @@ class DocumentManager:
                     if text.strip():
                         chunks.extend(self._chunk_text(text, path, pnum))
             return chunks
-        except ImportError:
+        except Exception:
             pass
         try:
             import PyPDF2  # type: ignore
@@ -185,9 +357,8 @@ class DocumentManager:
                     if text.strip():
                         chunks.extend(self._chunk_text(text, path, pnum))
             return chunks
-        except ImportError:
+        except Exception:
             pass
-        # Last-resort: treat as plain text
         return self._load_txt(path)
 
     def _load_docx(self, path: str) -> List[DocumentChunk]:
@@ -196,31 +367,92 @@ class DocumentManager:
             doc = Document(path)
             full_text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
             return self._chunk_text(full_text, path)
-        except ImportError:
+        except Exception:
             return self._load_txt(path)
 
-    # ── Indexing & search ────────────────────────────────────────────────────
+    # ── Keyword index ────────────────────────────────────────────────────────
 
     def _preprocess(self, text: str) -> str:
         text = text.lower().translate(str.maketrans("", "", string.punctuation))
-        tokens = word_tokenize(text)
         return " ".join(
-            w for w in tokens if w.isalpha() and w not in self._stop_words
+            w for w in word_tokenize(text)
+            if w.isalpha() and w not in self._stop_words
         )
 
-    def _rebuild_index(self) -> None:
-        if not self.chunks or not _SKLEARN_AVAILABLE:
-            return
-        try:
-            processed = [self._preprocess(c.text) for c in self.chunks]
-            self._vectorizer = TfidfVectorizer(
-                ngram_range=(1, 2),
-                max_features=8_000,
-                sublinear_tf=True,
-            )
-            self._tfidf_matrix = self._vectorizer.fit_transform(processed)
-        except Exception as exc:
-            print(f"[DocumentManager] Index build error: {exc}")
+    def _tokenize(self, text: str) -> List[str]:
+        return self._preprocess(text).split()
+
+    def _rebuild_keyword_index(self) -> None:
+        """Build TF-IDF and BM25 indices synchronously (fast, keyword-level)."""
+        texts = [c.text for c in self.chunks]
+        best = "keyword"
+
+        if _SKLEARN:
+            try:
+                proc = [self._preprocess(t) for t in texts]
+                self._tfidf_vec = TfidfVectorizer(
+                    ngram_range=(1, 2), max_features=8_000, sublinear_tf=True
+                )
+                self._tfidf_mat = self._tfidf_vec.fit_transform(proc)
+                best = "tfidf"
+            except Exception as exc:
+                print(f"[TF-IDF] {exc}")
+
+        if _BM25:
+            try:
+                corpus = [self._tokenize(t) for t in texts]
+                self._bm25 = BM25Okapi(corpus)
+                if best == "tfidf":
+                    best = "hybrid"
+            except Exception as exc:
+                print(f"[BM25] {exc}")
+
+        # Only update backend_name if semantic is not already active
+        if self.backend_name in ("keyword", "tfidf", "hybrid"):
+            self.backend_name = best
+
+    # ── Search backends ───────────────────────────────────────────────────────
+
+    def _search_semantic(
+        self, query: str, top_k: int, min_score: float
+    ) -> List[Tuple[DocumentChunk, float]]:
+        q_emb = self._embed_model.encode([query], convert_to_numpy=True)
+        scores = cosine_similarity(q_emb, self._embeddings)[0]
+        idx = np.argsort(scores)[::-1]
+        return [
+            (self.chunks[i], float(scores[i]))
+            for i in idx
+            if scores[i] >= min_score
+        ][:top_k]
+
+    def _search_hybrid(
+        self, query: str, top_k: int, min_score: float
+    ) -> List[Tuple[DocumentChunk, float]]:
+        # TF-IDF scores (normalised to [0, 1])
+        pq = self._preprocess(query)
+        if pq.strip():
+            q_vec = self._tfidf_vec.transform([pq])
+            tfidf_raw = cosine_similarity(q_vec, self._tfidf_mat)[0]
+        else:
+            tfidf_raw = np.zeros(len(self.chunks))
+        tfidf_norm = tfidf_raw / (tfidf_raw.max() or 1.0)
+
+        # BM25 scores (normalised)
+        tokens = self._tokenize(query)
+        if tokens:
+            bm25_raw = np.array(self._bm25.get_scores(tokens))
+        else:
+            bm25_raw = np.zeros(len(self.chunks))
+        bm25_norm = bm25_raw / (bm25_raw.max() or 1.0)
+
+        # Weighted combination — BM25 rewards exact matches; TF-IDF rewards rarity
+        final = self._TFIDF_WEIGHT * tfidf_norm + self._BM25_WEIGHT * bm25_norm
+        idx = np.argsort(final)[::-1]
+        return [
+            (self.chunks[i], float(final[i]))
+            for i in idx
+            if final[i] >= min_score
+        ][:top_k]
 
     def _search_tfidf(
         self, query: str, top_k: int, min_score: float
@@ -228,29 +460,24 @@ class DocumentManager:
         pq = self._preprocess(query)
         if not pq.strip():
             return []
-        q_vec = self._vectorizer.transform([pq])
-        scores = cosine_similarity(q_vec, self._tfidf_matrix)[0]
-        indices = np.argsort(scores)[::-1][:top_k]
-        return [
-            (self.chunks[i], float(scores[i]))
-            for i in indices
-            if scores[i] >= min_score
-        ]
+        q_vec = self._tfidf_vec.transform([pq])
+        scores = cosine_similarity(q_vec, self._tfidf_mat)[0]
+        idx = np.argsort(scores)[::-1][:top_k]
+        return [(self.chunks[i], float(scores[i])) for i in idx if scores[i] >= min_score]
 
     def _search_keyword(
         self, query: str, top_k: int, min_score: float
     ) -> List[Tuple[DocumentChunk, float]]:
-        qwords = set(self._preprocess(query).split())
+        qwords = set(self._tokenize(query))
         if not qwords:
             return []
         results: List[Tuple[DocumentChunk, float]] = []
         for chunk in self.chunks:
-            cwords = set(self._preprocess(chunk.text).split())
-            if not cwords:
-                continue
-            score = len(qwords & cwords) / len(qwords)
-            if score >= min_score:
-                results.append((chunk, score))
+            cwords = set(self._tokenize(chunk.text))
+            if cwords:
+                score = len(qwords & cwords) / len(qwords)
+                if score >= min_score:
+                    results.append((chunk, score))
         results.sort(key=lambda x: x[1], reverse=True)
         return results[:top_k]
 
@@ -291,17 +518,21 @@ class TranscriptionThread(QThread):
     # ── Model loading ────────────────────────────────────────────────────────
 
     def _load_model(self) -> bool:
+        device = _best_device()
+
         # 1. faster-whisper
         try:
             from faster_whisper import WhisperModel  # type: ignore
             self.status_update.emit(
-                f"Loading faster-whisper ({self.model_size}) — first run may download model…"
+                f"Loading faster-whisper ({self.model_size}) on {device}…"
             )
+            # faster-whisper uses int8 on CPU for efficiency; float16 on GPU
+            compute = "int8" if device == "cpu" else "float16"
             self._model = WhisperModel(
-                self.model_size, device="cpu", compute_type="int8"
+                self.model_size, device=device, compute_type=compute
             )
             self._backend = "faster_whisper"
-            self.status_update.emit("faster-whisper ready  ✔")
+            self.status_update.emit(f"faster-whisper ready  [{device}]  ✔")
             return True
         except ImportError:
             pass
@@ -312,11 +543,11 @@ class TranscriptionThread(QThread):
         try:
             import whisper  # type: ignore
             self.status_update.emit(
-                f"Loading openai-whisper ({self.model_size})…"
+                f"Loading openai-whisper ({self.model_size}) on {device}…"
             )
-            self._model = whisper.load_model(self.model_size)
+            self._model = whisper.load_model(self.model_size, device=device)
             self._backend = "openai_whisper"
-            self.status_update.emit("openai-whisper ready  ✔")
+            self.status_update.emit(f"openai-whisper ready  [{device}]  ✔")
             return True
         except ImportError:
             pass
@@ -387,7 +618,8 @@ class TranscriptionThread(QThread):
         except ImportError:
             self.error_signal.emit(
                 "sounddevice not found.\n"
-                "Install with:  pip install sounddevice"
+                "Install with:  pip install sounddevice\n\n"
+                "On macOS you may also need:  brew install portaudio"
             )
             return
 
@@ -402,31 +634,38 @@ class TranscriptionThread(QThread):
                 print(f"[audio] {status}")
             self._audio_q.put(indata.copy())
 
-        with sd.InputStream(
-            samplerate=self.SAMPLE_RATE,
-            channels=1,
-            dtype="float32",
-            blocksize=int(self.SAMPLE_RATE * 0.25),
-            callback=_callback,
-        ):
-            while not self._stop_event.is_set():
-                try:
-                    block = self._audio_q.get(timeout=0.3)
-                    buffer = np.concatenate([buffer, block.flatten()])
+        try:
+            with sd.InputStream(
+                samplerate=self.SAMPLE_RATE,
+                channels=1,
+                dtype="float32",
+                blocksize=int(self.SAMPLE_RATE * 0.25),
+                callback=_callback,
+            ):
+                while not self._stop_event.is_set():
+                    try:
+                        block = self._audio_q.get(timeout=0.3)
+                        buffer = np.concatenate([buffer, block.flatten()])
 
-                    if len(buffer) >= chunk_samples:
-                        audio_chunk = buffer[:chunk_samples].copy()
-                        # Slide window forward by step_samples
-                        buffer = buffer[step_samples:]
+                        if len(buffer) >= chunk_samples:
+                            audio_chunk = buffer[:chunk_samples].copy()
+                            # Slide window forward by step_samples
+                            buffer = buffer[step_samples:]
 
-                        text = self._transcribe(audio_chunk)
-                        if text and len(text.strip()) > 2:
-                            self.new_text.emit(text.strip())
+                            text = self._transcribe(audio_chunk)
+                            if text and len(text.strip()) > 2:
+                                self.new_text.emit(text.strip())
 
-                except queue.Empty:
-                    continue
-                except Exception as exc:
-                    print(f"[TranscriptionThread] {exc}")
+                    except queue.Empty:
+                        continue
+                    except Exception as exc:
+                        print(f"[TranscriptionThread] {exc}")
+        except Exception as exc:
+            self.error_signal.emit(
+                f"Audio device error: {exc}\n\n"
+                "Make sure your microphone is connected and accessible.\n"
+                "On macOS: System Preferences → Security & Privacy → Microphone."
+            )
 
         self.status_update.emit("⏹ Stopped")
 
@@ -508,6 +747,7 @@ QLabel#titleLabel { color: #89b4fa; font-size: 20px; font-weight: bold; }
 QLabel#subLabel    { color: #6c7086; font-size: 12px; }
 QLabel#docLabel    { color: #a6e3a1; font-size: 12px; }
 QLabel#statusLabel { color: #a6e3a1; font-size: 12px; font-weight: bold; }
+QLabel#backendLabel { color: #f9e2af; font-size: 11px; font-weight: bold; }
 
 /* ── Combo boxes ── */
 QComboBox {
@@ -670,9 +910,13 @@ class InterviewAssistant(QMainWindow):
     Two-panel interview assistant:
       Left  — live rolling transcript of what is being said
       Right — top-ranked document sections relevant to recent speech
+
+    Search quality upgrades automatically as backends become available:
+      Startup  → TF-IDF + BM25 (immediate, keyword-level)
+      ~5-15 s  → Semantic embeddings (meaning-based, much more accurate)
     """
 
-    _BUFFER_MAX_WORDS = 120       # how many recent words are kept for searching
+    _BUFFER_MAX_WORDS = 120         # how many recent words are kept for searching
     _THREAD_STOP_TIMEOUT_MS = 4_000  # ms to wait for the transcription thread to finish
 
     def __init__(self) -> None:
@@ -681,6 +925,9 @@ class InterviewAssistant(QMainWindow):
         self._loaded_files: List[str] = []
         self._transcript_words: List[str] = []
         self._transcription_thread: Optional[TranscriptionThread] = None
+        self._model_loader: Optional[ModelLoaderThread] = None
+        self._embed_indexer: Optional[EmbeddingIndexThread] = None
+        self._embed_needed: bool = False  # docs loaded before model was ready
 
         self._build_ui()
         self.setStyleSheet(STYLESHEET)
@@ -690,6 +937,9 @@ class InterviewAssistant(QMainWindow):
         self._search_timer.setSingleShot(True)
         self._search_timer.timeout.connect(self._run_search)
         self._pending_query: str = ""
+
+        # Begin loading the semantic embedding model in the background
+        self._start_model_loading()
 
     # ── UI construction ──────────────────────────────────────────────────────
 
@@ -711,8 +961,14 @@ class InterviewAssistant(QMainWindow):
         self._status_indicator = QLabel("⚪  Ready")
         self._status_indicator.setObjectName("statusLabel")
         self._status_indicator.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        # Search backend pill (updates as model loads)
+        self._backend_label = QLabel("⏳ Loading model…")
+        self._backend_label.setObjectName("backendLabel")
+        self._backend_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         title_row.addWidget(title_lbl)
         title_row.addStretch()
+        title_row.addWidget(self._backend_label)
+        title_row.addSpacing(12)
         title_row.addWidget(self._status_indicator)
         root_layout.addLayout(title_row)
 
@@ -899,6 +1155,83 @@ class InterviewAssistant(QMainWindow):
 
         return bar
 
+    # ── Semantic model loading ────────────────────────────────────────────────
+
+    def _start_model_loading(self) -> None:
+        self._model_loader = ModelLoaderThread(parent=self)
+        self._model_loader.model_ready.connect(self._on_model_ready)
+        self._model_loader.status_update.connect(self._on_status)
+        self._model_loader.start()
+
+    def _on_model_ready(self, model, device: str) -> None:
+        self._doc_manager.set_embed_model(model)
+        if model is not None:
+            self._backend_label.setText(f"🧠 Semantic  [{device}]")
+            self._backend_label.setStyleSheet(
+                "color: #a6e3a1; font-size: 11px; font-weight: bold;"
+            )
+            # If documents were loaded before the model was ready, index them now
+            if self._embed_needed and self._doc_manager.chunks:
+                self._start_embedding_index()
+        else:
+            self._update_backend_label()
+        self._embed_needed = False
+
+    def _start_embedding_index(self) -> None:
+        if not self._doc_manager.chunks or self._doc_manager.embed_model is None:
+            return
+        # Cancel any running indexer
+        if self._embed_indexer and self._embed_indexer.isRunning():
+            self._embed_indexer.quit()
+            self._embed_indexer.wait(2_000)
+        self._embed_indexer = EmbeddingIndexThread(
+            self._doc_manager.embed_model,
+            list(self._doc_manager.chunks),
+            parent=self,
+        )
+        self._embed_indexer.embeddings_ready.connect(self._on_embeddings_ready)
+        self._embed_indexer.status_update.connect(self._on_status)
+        self._embed_indexer.start()
+        self._backend_label.setText("⏳ Indexing…")
+        self._backend_label.setStyleSheet(
+            "color: #f9e2af; font-size: 11px; font-weight: bold;"
+        )
+
+    def _on_embeddings_ready(self, embeddings) -> None:
+        self._doc_manager.set_embeddings(embeddings)
+        n = len(self._doc_manager.chunks)
+        if self._doc_manager.backend_name == "semantic":
+            # Embeddings computed successfully — show chunk count and device
+            device = _best_device()
+            self._backend_label.setText(f"🧠 Semantic  [{device}]  {n} chunks")
+            self._backend_label.setStyleSheet(
+                "color: #a6e3a1; font-size: 11px; font-weight: bold;"
+            )
+            self._status_bar.showMessage(
+                f"Semantic index ready — {n} chunks indexed for meaning-based search  ✔"
+            )
+        else:
+            # Embedding failed — show the fallback backend
+            self._update_backend_label()
+            self._status_bar.showMessage(
+                f"Embedding failed — using {self._doc_manager.backend_name} search"
+            )
+
+    def _update_backend_label(self) -> None:
+        name = self._doc_manager.backend_name
+        if "semantic" in name:
+            icon, colour = "🧠", "#a6e3a1"
+        elif "hybrid" in name:
+            icon, colour = "📊", "#f9e2af"
+        elif "tfidf" in name:
+            icon, colour = "📈", "#cba6f7"
+        else:
+            icon, colour = "⌨️", "#6c7086"
+        self._backend_label.setText(f"{icon} {name.capitalize()}")
+        self._backend_label.setStyleSheet(
+            f"color: {colour}; font-size: 11px; font-weight: bold;"
+        )
+
     # ── Document management ──────────────────────────────────────────────────
 
     def _load_documents(self) -> None:
@@ -916,9 +1249,19 @@ class InterviewAssistant(QMainWindow):
             if n:
                 self._loaded_files.append(path)
                 self._status_bar.showMessage(
-                    f"Loaded '{Path(path).name}'  ({n} indexed chunks)"
+                    f"Loaded '{Path(path).name}'  ({n} chunks)"
                 )
         self._refresh_doc_label()
+        self._update_backend_label()
+
+        # Trigger semantic indexing if the model is already loaded
+        if self._doc_manager.embed_model is not None:
+            self._start_embedding_index()
+        else:
+            self._embed_needed = True
+            self._status_bar.showMessage(
+                "Documents loaded — waiting for semantic model to finish…"
+            )
 
     def _clear_documents(self) -> None:
         self._doc_manager.clear()
@@ -926,6 +1269,7 @@ class InterviewAssistant(QMainWindow):
         self._refresh_doc_label()
         self._clear_results()
         self._status_bar.showMessage("All documents cleared.")
+        self._update_backend_label()
 
     def _refresh_doc_label(self) -> None:
         if not self._loaded_files:
@@ -941,7 +1285,6 @@ class InterviewAssistant(QMainWindow):
             self._doc_label.setObjectName("docLabel")
             total = len(self._doc_manager.chunks)
             self._chunk_label.setText(f"{total} indexed chunks")
-        # Force style refresh
         self._doc_label.style().unpolish(self._doc_label)
         self._doc_label.style().polish(self._doc_label)
 
@@ -991,9 +1334,7 @@ class InterviewAssistant(QMainWindow):
         # Maintain rolling word buffer for searching
         self._transcript_words.extend(text.split())
         if len(self._transcript_words) > self._BUFFER_MAX_WORDS:
-            self._transcript_words = self._transcript_words[
-                -self._BUFFER_MAX_WORDS :
-            ]
+            self._transcript_words = self._transcript_words[-self._BUFFER_MAX_WORDS:]
 
         # Schedule a debounced search
         self._pending_query = " ".join(self._transcript_words)
@@ -1033,33 +1374,22 @@ class InterviewAssistant(QMainWindow):
 
         kw_preview = " · ".join(keywords[:6]) if keywords else "—"
         self._query_label.setText(f'Matching:  "{kw_preview}"')
-
         self._update_results(results, keywords)
 
     @staticmethod
     def _extract_keywords(text: str) -> List[str]:
-        """Extract the most meaningful nouns / adjectives from a string."""
+        """Extract significant content words from the query for highlighting."""
         _stop = set(nltk_stopwords.words("english"))
         clean = text.lower().translate(str.maketrans("", "", string.punctuation))
-        try:
-            tokens = word_tokenize(clean)
-            tagged = pos_tag(tokens)
-            kws = [
-                w
-                for w, t in tagged
-                if t in ("NN", "NNS", "NNP", "NNPS", "JJ", "VBG")
-                and w not in _stop
-                and len(w) > 2
-            ]
-        except Exception:
-            kws = [w for w in clean.split() if w not in _stop and len(w) > 2]
-        # Deduplicate, preserve order
+        words = word_tokenize(clean)
+        # Keep any non-stopword word longer than 2 characters
+        kws = [w for w in words if w.isalpha() and len(w) > 2 and w not in _stop]
         seen: set = set()
         unique: List[str] = []
-        for kw in kws:
-            if kw not in seen:
-                seen.add(kw)
-                unique.append(kw)
+        for w in kws:
+            if w not in seen:
+                seen.add(w)
+                unique.append(w)
         return unique[:10]
 
     def _update_results(
@@ -1074,9 +1404,11 @@ class InterviewAssistant(QMainWindow):
             return
 
         self._placeholder.hide()
-        self._count_label.setText(f"{len(results)} reference(s) found")
+        backend = self._doc_manager.backend_name
+        self._count_label.setText(
+            f"{len(results)} reference(s) found  ·  {backend}"
+        )
 
-        # Insert cards before the trailing stretch
         for chunk, score in results:
             card = ReferenceCard(chunk, score, keywords)
             self._results_layout.insertWidget(
@@ -1099,6 +1431,12 @@ class InterviewAssistant(QMainWindow):
 
     def closeEvent(self, event) -> None:
         self._stop_listening()
+        if self._embed_indexer and self._embed_indexer.isRunning():
+            self._embed_indexer.quit()
+            self._embed_indexer.wait(2_000)
+        if self._model_loader and self._model_loader.isRunning():
+            self._model_loader.quit()
+            self._model_loader.wait(2_000)
         event.accept()
 
 

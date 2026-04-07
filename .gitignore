@@ -19,6 +19,8 @@ nltk_data/
 
 # Local test screenshots
 screenshot.png
+screenshot_v2.png
+screenshot_*.png
 
 # macOS
 .DS_Store

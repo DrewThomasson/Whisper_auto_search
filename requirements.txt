@@ -9,7 +9,19 @@ nltk>=3.7
 scikit-learn>=1.0
 numpy>=1.21
 
-# ── Speech recognition (at least one required) ───────────────────────────────
+# ── Semantic search (primary — most accurate) ────────────────────────────────
+# Downloads the all-MiniLM-L6-v2 model (~80 MB) on first run.
+# Works on CPU, CUDA (NVIDIA), and MPS (Apple Silicon).
+sentence-transformers>=2.2
+
+# For CPU-only machines install a lightweight torch first to save space:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   pip install sentence-transformers
+
+# ── Keyword search (hybrid fallback — active immediately after doc load) ─────
+rank-bm25>=0.2
+
+# ── Speech recognition (at least one required for live transcription) ─────────
 # Recommended — fast local transcription, no internet required:
 faster-whisper>=0.9
 
@@ -19,6 +31,7 @@ faster-whisper>=0.9
 
 # ── Audio capture ────────────────────────────────────────────────────────────
 sounddevice>=0.4
+# On macOS, also run:  brew install portaudio
 
 # ── Document loading (optional but strongly recommended) ─────────────────────
 pdfplumber>=0.9      # PDF support
