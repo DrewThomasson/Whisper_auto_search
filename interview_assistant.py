@@ -133,6 +133,13 @@ class ModelLoaderThread(QThread):
             "(first run downloads ~80 MB)…"
         )
         try:
+            # Suppress the harmless "embeddings.position_ids UNEXPECTED" warning
+            # that transformers emits when loading all-MiniLM-L6-v2.
+            try:
+                from transformers import logging as hf_logging  # type: ignore
+                hf_logging.set_verbosity_error()
+            except ImportError:
+                pass
             model = SentenceTransformer(self.EMBED_MODEL, device=device)
             self.status_update.emit(f"Semantic model ready  [{device}]  ✔")
             self.model_ready.emit(model, device)
@@ -520,26 +527,29 @@ class TranscriptionThread(QThread):
     def _load_model(self) -> bool:
         device = _best_device()
 
+        # faster-whisper uses CTranslate2 which only supports "cpu" and "cuda".
+        # MPS (Apple Silicon) is not supported — fall back to CPU for this backend.
+        fw_device = "cpu" if device == "mps" else device
+        fw_compute = "int8" if fw_device == "cpu" else "float16"
+
         # 1. faster-whisper
         try:
             from faster_whisper import WhisperModel  # type: ignore
             self.status_update.emit(
-                f"Loading faster-whisper ({self.model_size}) on {device}…"
+                f"Loading faster-whisper ({self.model_size}) on {fw_device}…"
             )
-            # faster-whisper uses int8 on CPU for efficiency; float16 on GPU
-            compute = "int8" if device == "cpu" else "float16"
             self._model = WhisperModel(
-                self.model_size, device=device, compute_type=compute
+                self.model_size, device=fw_device, compute_type=fw_compute
             )
             self._backend = "faster_whisper"
-            self.status_update.emit(f"faster-whisper ready  [{device}]  ✔")
+            self.status_update.emit(f"faster-whisper ready  [{fw_device}]  ✔")
             return True
         except ImportError:
             pass
         except Exception as exc:
             print(f"[faster-whisper load error] {exc}")
 
-        # 2. openai-whisper
+        # 2. openai-whisper (supports MPS via PyTorch natively)
         try:
             import whisper  # type: ignore
             self.status_update.emit(
