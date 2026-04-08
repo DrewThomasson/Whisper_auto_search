@@ -1,0 +1,26 @@
+# Version control
+.git
+.gitignore
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Caches downloaded at runtime
+nltk_data/
+.cache/
+
+# macOS
+.DS_Store
+
+# Screenshots
+screenshot*.png

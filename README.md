@@ -50,6 +50,63 @@ python interview_assistant.py
 
 ---
 
+## 🐳 Docker
+
+Run the Interview Assistant inside a container — no need to install Python or any dependencies on the host.
+
+### Prerequisites
+
+* **Docker** and **Docker Compose** installed on the host.
+* A Linux desktop with an X11 display server (Wayland users: enable XWayland).
+* Allow the container to access your display:
+
+  ```bash
+  xhost +local:docker
+  ```
+
+### Build & run
+
+```bash
+# Build the image
+docker compose build
+
+# Run the container
+docker compose up
+```
+
+Or without Compose:
+
+```bash
+docker build -t interview-assistant .
+docker run --rm -it \
+    -e DISPLAY=$DISPLAY \
+    -e PULSE_SERVER=unix:/run/pulse/native \
+    -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
+    -v ${XDG_RUNTIME_DIR}/pulse/native:/run/pulse/native \
+    -v ./documents:/app/documents \
+    --device /dev/snd \
+    --network host \
+    interview-assistant
+```
+
+> **Tip:** Place your PDF / DOCX / TXT files in a `documents/` folder next to the `docker-compose.yml`. They will be available inside the container at `/app/documents`.
+
+### GPU support (optional)
+
+To use NVIDIA GPU acceleration for Whisper, install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) and add the following to the service in `docker-compose.yml`:
+
+```yaml
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+```
+
+---
+
 ## Run_auto_search_gui.py  *(original)*
 
 The original prototype. Listens via the `whisper.cpp` `./stream` binary and searches a TXT file for relevant noun-matched sections.
