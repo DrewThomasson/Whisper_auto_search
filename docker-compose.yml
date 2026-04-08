@@ -4,12 +4,12 @@ services:
     container_name: interview-assistant
     environment:
       - DISPLAY=${DISPLAY:-:0}
-      - PULSE_SERVER=unix:/run/user/1000/pulse/native
+      - PULSE_SERVER=unix:/run/pulse/native
     volumes:
       # X11 socket — required for the GUI
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       # PulseAudio socket — required for microphone access
-      - ${XDG_RUNTIME_DIR:-/run/user/1000}/pulse/native:/run/user/1000/pulse/native
+      - ${XDG_RUNTIME_DIR:-/run/user/1000}/pulse/native:/run/pulse/native
       # Optional: mount a local documents folder into the container
       - ./documents:/app/documents
     devices:

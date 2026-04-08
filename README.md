@@ -80,9 +80,9 @@ Or without Compose:
 docker build -t interview-assistant .
 docker run --rm -it \
     -e DISPLAY=$DISPLAY \
-    -e PULSE_SERVER=unix:/run/user/$(id -u)/pulse/native \
+    -e PULSE_SERVER=unix:/run/pulse/native \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
-    -v ${XDG_RUNTIME_DIR}/pulse/native:/run/user/1000/pulse/native \
+    -v ${XDG_RUNTIME_DIR}/pulse/native:/run/pulse/native \
     -v ./documents:/app/documents \
     --device /dev/snd \
     --network host \
