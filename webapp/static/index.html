@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interview Assistant — Whisper Auto-Search</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎙</text></svg>" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Title bar ─────────────────────────────────────────────────────── -->
+  <header id="title-bar">
+    <h1>🎙&nbsp; Interview Assistant</h1>
+    <div id="title-bar-right">
+      <!-- WebGPU / WASM badge (text updated by JS) -->
+      <span id="webgpu-badge" class="badge badge-ok">⚡ WebGPU enabled</span>
+      <!-- Search backend pill (updated by JS as model loads) -->
+      <span id="backend-pill" class="badge pill-keyword">⏳ Loading model…</span>
+      <!-- Listening status indicator -->
+      <span id="status-indicator" class="badge">⚪&nbsp; Ready</span>
+    </div>
+  </header>
+
+  <!-- ── Document toolbar ───────────────────────────────────────────────── -->
+  <div id="toolbar">
+    <button id="btn-load">📂&nbsp; Load Documents</button>
+    <button id="btn-clear">🗑&nbsp; Clear All</button>
+    <div id="doc-info">
+      <span id="doc-label">No documents loaded</span>
+      <span id="chunk-label"></span>
+    </div>
+  </div>
+
+  <!-- ── Main two-panel area ────────────────────────────────────────────── -->
+  <div id="main-content">
+
+    <!-- Left panel: transcript + manual input + drag-drop -->
+    <section id="left-panel" class="panel">
+      <div class="panel-title">Live Transcript</div>
+
+      <textarea
+        id="transcript"
+        readonly
+        placeholder="Transcribed speech appears here in real time.&#10;&#10;Click ▶ Start Listening to begin, or use the&#10;Manual Input box below to test without a microphone."
+      ></textarea>
+
+      <!-- Manual input -->
+      <div id="manual-section">
+        <h3>Manual Input &nbsp;(test without microphone)</h3>
+        <div id="manual-row">
+          <textarea
+            id="manual-input"
+            placeholder="Type text here and press Search…"
+          ></textarea>
+          <button id="btn-search">🔍 Search</button>
+        </div>
+      </div>
+
+      <!-- Drag-and-drop upload zone -->
+      <div id="drop-zone">
+        📎&nbsp; Drag &amp; drop documents here<br>
+        <small style="color:var(--text-muted)">PDF · DOCX · TXT · MD · CSV</small>
+      </div>
+    </section>
+
+    <!-- Right panel: document references -->
+    <section id="right-panel" class="panel">
+      <div class="panel-title">Document References</div>
+
+      <div id="ref-info">
+        <span id="query-label">Matching: —</span>
+        <span id="count-label"></span>
+      </div>
+
+      <div id="results-scroll">
+        <div id="results-list"></div>
+        <p id="results-placeholder">
+          📂  Load documents and start speaking
+          to see live references here
+        </p>
+      </div>
+    </section>
+
+  </div><!-- /#main-content -->
+
+  <!-- ── Bottom controls ────────────────────────────────────────────────── -->
+  <div id="controls">
+    <div class="controls-group">
+      <label for="model-select">Whisper model:</label>
+      <select id="model-select" title="tiny = fastest · base = balanced · small = most accurate">
+        <option value="tiny">tiny</option>
+        <option value="base" selected>base</option>
+        <option value="small">small</option>
+      </select>
+    </div>
+
+    <div class="controls-group">
+      <label for="results-select">Max results:</label>
+      <select id="results-select">
+        <option value="3">3</option>
+        <option value="5" selected>5</option>
+        <option value="7">7</option>
+        <option value="10">10</option>
+      </select>
+    </div>
+
+    <div class="controls-spacer"></div>
+
+    <button id="btn-clear-transcript">Clear Transcript</button>
+    <button id="btn-start">▶&nbsp; Start Listening</button>
+    <button id="btn-stop" disabled>⏹&nbsp; Stop</button>
+  </div>
+
+  <!-- ── Status bar ─────────────────────────────────────────────────────── -->
+  <div id="status-bar" class="status-bar status-idle">
+    Load documents (PDF / DOCX / TXT) then click ▶ Start Listening
+  </div>
+
+</div><!-- /#app -->
+
+<!-- ES module — must be type="module" for the Transformers.js CDN import -->
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>

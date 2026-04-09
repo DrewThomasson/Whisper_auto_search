@@ -14,8 +14,13 @@ env/
 # NLTK data (downloaded at runtime)
 nltk_data/
 
-# Whisper model cache (downloaded at runtime)
+# Whisper / HuggingFace model cache (downloaded at runtime)
 .cache/
+webapp/.cache/
+
+# Docker runtime artefacts
+uploads/
+webapp/uploads/
 
 # Local test screenshots
 screenshot.png

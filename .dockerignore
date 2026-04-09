@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# NLTK / model caches (downloaded at runtime inside the container)
+nltk_data/
+.cache/
+
+# macOS
+.DS_Store
+
+# Test / dev artefacts
+*.png
+*.jpg
+*.jpeg
+1.txt
+
+# Original desktop app (not needed inside the Docker image)
+interview_assistant.py
+Run_auto_search_gui.py
+requirements.txt
+README.md
