@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: whisper-auto-search:latest
+    container_name: whisper-auto-search
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist the HuggingFace model cache across restarts (~80 MB on first run).
+      - hf-cache:/app/.cache/huggingface
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PORT=8000
+    restart: unless-stopped
+    # Give the container enough memory for sentence-transformers + scikit-learn.
+    mem_limit: 2g
+
+volumes:
+  hf-cache:

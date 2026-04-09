@@ -1,0 +1,28 @@
+# Whisper Auto-Search — Web Application Python dependencies
+# Install with:  pip install -r requirements.txt
+
+# ── Web framework ─────────────────────────────────────────────────────────────
+fastapi>=0.100
+uvicorn[standard]>=0.23
+python-multipart>=0.0.6   # required by FastAPI for file uploads
+
+# ── NLP / text processing ─────────────────────────────────────────────────────
+nltk>=3.7
+scikit-learn>=1.0
+numpy>=1.21
+
+# ── Semantic search (server-side; downloads ~80 MB model on first run) ────────
+sentence-transformers>=2.2
+# For CPU-only environments use a lightweight torch first:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   pip install sentence-transformers
+
+# ── Keyword search (hybrid fallback) ─────────────────────────────────────────
+rank-bm25>=0.2
+
+# ── Document loading ──────────────────────────────────────────────────────────
+pdfplumber>=0.9      # PDF support
+python-docx>=0.8     # Word (.docx) support
+
+# NOTE: Speech-to-text (Whisper) runs entirely in the browser via
+# Transformers.js and WebGPU — no server-side audio libraries required.
