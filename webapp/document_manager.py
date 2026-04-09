@@ -404,6 +404,8 @@ class DocumentManager:
     def _search_semantic(
         self, query: str, top_k: int, min_score: float
     ) -> List[Tuple[DocumentChunk, float]]:
+        if not _SKLEARN:
+            return self._search_keyword(query, top_k, min_score)
         q_emb = self._embed_model.encode([query], convert_to_numpy=True)
         scores = cosine_similarity(q_emb, self._embeddings)[0]
         idx = np.argsort(scores)[::-1]
@@ -417,7 +419,7 @@ class DocumentManager:
         self, query: str, top_k: int, min_score: float
     ) -> List[Tuple[DocumentChunk, float]]:
         pq = self._preprocess(query)
-        if pq.strip():
+        if _SKLEARN and pq.strip():
             q_vec = self._tfidf_vec.transform([pq])
             tfidf_raw = cosine_similarity(q_vec, self._tfidf_mat)[0]
         else:
@@ -442,6 +444,8 @@ class DocumentManager:
     def _search_tfidf(
         self, query: str, top_k: int, min_score: float
     ) -> List[Tuple[DocumentChunk, float]]:
+        if not _SKLEARN:
+            return self._search_keyword(query, top_k, min_score)
         pq = self._preprocess(query)
         if not pq.strip():
             return []

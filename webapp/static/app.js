@@ -498,10 +498,17 @@ function highlightKeywords(text, keywords) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
-  keywords.slice(0, HIGHLIGHT_COLOURS.length).forEach((kw, i) => {
-    if (!kw || kw.length < 2) return;
+  // Compile all patterns once before iterating.
+  const patterns = keywords
+    .slice(0, HIGHLIGHT_COLOURS.length)
+    .map(kw => (kw && kw.length >= 2)
+      ? new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+      : null
+    );
+
+  patterns.forEach((re, i) => {
+    if (!re) return;
     const [fg, bg] = HIGHLIGHT_COLOURS[i % HIGHLIGHT_COLOURS.length];
-    const re = new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
     html = html.replace(
       re,
       m => `<mark style="color:${fg};background:${bg};border-radius:3px;padding:0 2px;font-weight:600">${m}</mark>`

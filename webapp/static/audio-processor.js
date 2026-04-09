@@ -41,7 +41,7 @@ class AudioProcessor extends AudioWorkletProcessor {
     while (this._buffer.length >= this._chunkSize) {
       // Transfer ownership of the typed array for zero-copy messaging.
       const chunk = this._buffer.slice(0, this._chunkSize);
-      this.port.postMessage({ audio: chunk }, [chunk.buffer]);
+      this.port.postMessage({ audio: chunk });
       this._buffer = this._buffer.slice(this._stepSize);
     }
 

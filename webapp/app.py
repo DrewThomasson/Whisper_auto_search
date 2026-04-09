@@ -112,11 +112,13 @@ async def upload_documents(files: List[UploadFile] = File(...)) -> JSONResponse:
                 }
             )
         except Exception as exc:
+            # Log the full exception server-side; return only a safe summary to the client.
+            print(f"[upload] Error processing '{original_name}': {exc}")
             results.append(
                 {
                     "filename": original_name,
                     "status": "error",
-                    "message": str(exc),
+                    "message": "Failed to process file. Check server logs for details.",
                     "chunks": 0,
                 }
             )
